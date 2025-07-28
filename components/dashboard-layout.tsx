@@ -26,6 +26,10 @@ import {
   Landmark,
   ClipboardList,
   HelpCircle,
+  Brain,
+  Target,
+  DollarSign,
+  Activity
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -45,94 +49,104 @@ interface NavSection {
 
 interface DashboardLayoutProps {
   children: React.ReactNode
-  role: "admin" | "village-head" | "secretary" | "treasurer" | "resident"
+  role: "admin" | "kepala_desa" | "penduduk"
 }
 
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const pathname = usePathname()
 
-  // Definisi navigasi untuk setiap peran dengan pengelompokan
+  // Navigation sections for the 3 roles according to specifications
   const navSections: Record<string, NavSection[]> = {
+    // ADMIN - Slate Theme (Combined Secretary + Treasurer functions)
     admin: [
       {
         items: [{ title: "Dasbor", href: "/dashboard/admin", icon: Home }],
       },
       {
-        title: "Data & Analisis",
+        title: "Manajemen Data",
         items: [
+          { title: "Manajemen Pengguna", href: "/dashboard/admin/users", icon: Users },
           { title: "Pengelolaan Data", href: "/dashboard/admin/data-management", icon: Database },
-          { title: "Analisis Data", href: "/dashboard/admin/analysis", icon: BarChart },
           { title: "Unggah Data", href: "/dashboard/admin/upload", icon: Upload },
         ],
       },
       {
-        title: "Administrasi",
+        title: "Analisis Machine Learning",
         items: [
-          { title: "Manajemen Pengguna", href: "/dashboard/admin/users", icon: Users },
+          { title: "Chi-Square Analysis", href: "/dashboard/admin/chi-square", icon: Brain },
+          { title: "Naive Bayes Classification", href: "/dashboard/admin/naive-bayes", icon: Target },
+          { title: "Laporan Analisis", href: "/dashboard/admin/analysis", icon: BarChart },
+        ],
+      },
+      {
+        title: "Anggaran 2025",
+        items: [
+          { title: "Alokasi Anggaran", href: "/dashboard/admin/budget", icon: DollarSign },
+          { title: "Laporan Keuangan", href: "/dashboard/admin/financial-reports", icon: PieChart },
+        ],
+      },
+      {
+        title: "Sistem",
+        items: [
           { title: "Pengaturan Sistem", href: "/dashboard/admin/settings", icon: Settings },
         ],
       },
     ],
-    "village-head": [
+
+    // KEPALA DESA - Green Theme
+    kepala_desa: [
       {
         items: [{ title: "Dasbor", href: "/dashboard/village-head", icon: Home }],
       },
       {
-        title: "Program & Anggaran",
+        title: "Manajemen Keluhan",
         items: [
-          { title: "Persetujuan Program", href: "/dashboard/village-head/programs", icon: CheckSquare, badge: "4" },
-          { title: "Ikhtisar Anggaran", href: "/dashboard/village-head/budget", icon: PieChart },
+          { title: "Review Keluhan", href: "/dashboard/village-head/complaints", icon: MessageSquare, badge: "12" },
+          { title: "Persetujuan Keluhan", href: "/dashboard/village-head/approval", icon: CheckSquare, badge: "5" },
         ],
       },
       {
-        title: "Laporan & Umpan Balik",
+        title: "Hasil Program Prioritas",
         items: [
-          { title: "Laporan Analisis", href: "/dashboard/village-head/reports", icon: FileText },
-          { title: "Umpan Balik Penduduk", href: "/dashboard/village-head/feedback", icon: MessageSquare, badge: "7" },
-        ],
-      },
-    ],
-    secretary: [
-      {
-        items: [{ title: "Dasbor", href: "/dashboard/secretary", icon: Home }],
-      },
-      {
-        title: "Program & Analisis",
-        items: [
-          { title: "Manajemen Program", href: "/dashboard/secretary/programs", icon: FileText },
-          { title: "Analisis", href: "/dashboard/secretary/analysis", icon: BarChart },
-          { title: "Program Prioritas", href: "/dashboard/secretary/priority", icon: CheckSquare },
+          { title: "Klasifikasi ML", href: "/dashboard/village-head/classification", icon: Brain },
+          { title: "Program Prioritas", href: "/dashboard/village-head/programs", icon: Target },
+          { title: "Analisis Keputusan", href: "/dashboard/village-head/decisions", icon: Activity },
         ],
       },
       {
-        title: "Dokumentasi",
-        items: [{ title: "Dokumen Desa", href: "/dashboard/secretary/documents", icon: ClipboardList }],
-      },
-    ],
-    treasurer: [
-      {
-        items: [{ title: "Dasbor", href: "/dashboard/treasurer", icon: Home }],
-      },
-      {
-        title: "Keuangan",
+        title: "Laporan",
         items: [
-          { title: "Laporan Anggaran", href: "/dashboard/treasurer/reports", icon: PieChart },
-          { title: "Alokasi Anggaran", href: "/dashboard/treasurer/allocation", icon: CreditCard },
-          { title: "Transaksi", href: "/dashboard/treasurer/transactions", icon: Landmark },
+          { title: "Laporan Komprehensif", href: "/dashboard/village-head/reports", icon: FileText },
+          { title: "Dashboard Analytics", href: "/dashboard/village-head/analytics", icon: BarChart },
         ],
       },
     ],
-    resident: [
+
+    // PENDUDUK - Purple Theme
+    penduduk: [
       {
         items: [{ title: "Dasbor", href: "/dashboard/resident", icon: Home }],
       },
       {
-        title: "Layanan",
+        title: "Registrasi & Profil",
+        items: [
+          { title: "Registrasi Penduduk", href: "/dashboard/resident/registration", icon: User },
+          { title: "Profil Saya", href: "/dashboard/resident/profile", icon: ClipboardList },
+        ],
+      },
+      {
+        title: "Keluhan",
         items: [
           { title: "Ajukan Keluhan", href: "/dashboard/resident/complaint", icon: MessageSquare },
-          { title: "Lihat Program", href: "/dashboard/resident/programs", icon: FileText },
-          { title: "Bantuan", href: "/dashboard/resident/help", icon: HelpCircle },
+          { title: "Status Keluhan", href: "/dashboard/resident/complaint-status", icon: Activity },
+          { title: "Riwayat Keluhan", href: "/dashboard/resident/complaint-history", icon: FileText },
+        ],
+      },
+      {
+        title: "Bantuan",
+        items: [
+          { title: "Kontak Administrator", href: "/dashboard/resident/contact", icon: HelpCircle },
         ],
       },
     ],
@@ -140,55 +154,40 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
 
   const roleTitle: Record<string, string> = {
     admin: "Administrator",
-    "village-head": "Kepala Desa",
-    secretary: "Sekretaris",
-    treasurer: "Bendahara",
-    resident: "Penduduk",
+    kepala_desa: "Kepala Desa",
+    penduduk: "Penduduk",
   }
 
-  // Warna latar belakang sidebar berdasarkan peran
+  // Color schemes based on role according to specifications
   const sidebarColors: Record<string, string> = {
-    admin: "bg-slate-900 text-white",
-    "village-head": "bg-green-900 text-white",
-    secretary: "bg-blue-900 text-white",
-    treasurer: "bg-amber-900 text-white",
-    resident: "bg-purple-900 text-white",
+    admin: "bg-slate-900 text-white",        // Slate theme for admin
+    kepala_desa: "bg-green-900 text-white",  // Green theme for village head
+    penduduk: "bg-purple-900 text-white",    // Purple theme for residents
   }
 
-  // Warna hover berdasarkan peran
   const hoverColors: Record<string, string> = {
     admin: "hover:bg-slate-800",
-    "village-head": "hover:bg-green-800",
-    secretary: "hover:bg-blue-800",
-    treasurer: "hover:bg-amber-800",
-    resident: "hover:bg-purple-800",
+    kepala_desa: "hover:bg-green-800",
+    penduduk: "hover:bg-purple-800",
   }
 
-  // Warna aktif berdasarkan peran
   const activeColors: Record<string, string> = {
     admin: "bg-slate-800 text-white",
-    "village-head": "bg-green-800 text-white",
-    secretary: "bg-blue-800 text-white",
-    treasurer: "bg-amber-800 text-white",
-    resident: "bg-purple-800 text-white",
+    kepala_desa: "bg-green-800 text-white",
+    penduduk: "bg-purple-800 text-white",
   }
 
-  // Warna badge berdasarkan peran
   const badgeColors: Record<string, string> = {
     admin: "bg-slate-700",
-    "village-head": "bg-green-700",
-    secretary: "bg-blue-700",
-    treasurer: "bg-amber-700",
-    resident: "bg-purple-700",
+    kepala_desa: "bg-green-700",
+    penduduk: "bg-purple-700",
   }
 
-  // Ikon untuk setiap peran
+  // Role icons
   const roleIcons: Record<string, React.ElementType> = {
     admin: Settings,
-    "village-head": Landmark,
-    secretary: ClipboardList,
-    treasurer: CreditCard,
-    resident: User,
+    kepala_desa: Landmark,
+    penduduk: User,
   }
 
   const RoleIcon = roleIcons[role]
@@ -205,7 +204,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
               </AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-bold">Manajemen Desa</h2>
+              <h2 className="text-xl font-bold">Sistem Keluhan Desa</h2>
               <p className="text-sm opacity-75">{roleTitle[role]}</p>
             </div>
           </div>
@@ -260,7 +259,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h2 className="text-xl font-bold">Manajemen Desa</h2>
+                <h2 className="text-xl font-bold">Sistem Keluhan Desa</h2>
                 <p className="text-sm opacity-75">{roleTitle[role]}</p>
               </div>
             </div>

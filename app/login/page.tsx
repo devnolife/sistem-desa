@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Phone, Mail, MessageCircle, MapPin, Clock } from "lucide-react"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -22,21 +24,17 @@ export default function LoginPage() {
     setIsLoading(true)
 
     // In a real application, this would be an API call to authenticate
-    // For demo purposes, we'll simulate different user roles
+    // For demo purposes, we'll simulate different user roles based on requirements
 
     setTimeout(() => {
       setIsLoading(false)
 
-      // Simple role-based redirection
+      // Role-based redirection according to the 3 roles specified
       if (username.includes("admin")) {
         router.push("/dashboard/admin")
-      } else if (username.includes("head") || username.includes("kepala")) {
+      } else if (username.includes("kepala") || username.includes("head")) {
         router.push("/dashboard/village-head")
-      } else if (username.includes("secretary") || username.includes("sekretaris")) {
-        router.push("/dashboard/secretary")
-      } else if (username.includes("treasurer") || username.includes("bendahara")) {
-        router.push("/dashboard/treasurer")
-      } else if (username.includes("resident") || username.includes("penduduk")) {
+      } else if (username.includes("penduduk") || username.includes("resident")) {
         router.push("/dashboard/resident")
       } else {
         // Default to admin for demo
@@ -54,8 +52,10 @@ export default function LoginPage() {
 
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Masuk</CardTitle>
-          <CardDescription className="text-center">Masukkan kredensial Anda untuk mengakses akun</CardDescription>
+          <CardTitle className="text-2xl font-bold text-center">Masuk Sistem</CardTitle>
+          <CardDescription className="text-center">
+            Sistem Manajemen Keluhan Desa dengan Machine Learning
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin}>
@@ -87,12 +87,72 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
+        <CardFooter className="flex flex-col space-y-3">
           <div className="text-sm text-center text-gray-500">
-            <span>Akun demo: admin, kepala-desa, sekretaris, bendahara, penduduk</span>
+            <span>Akun demo: admin, kepala-desa, penduduk</span>
           </div>
-          <div className="text-sm text-center text-gray-500">
-            <span>Belum punya akun? Hubungi administrator Anda</span>
+          <div className="text-sm text-center">
+            <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
+              <DialogTrigger asChild>
+                <button className="text-blue-600 hover:text-blue-800 hover:underline font-medium">
+                  Belum punya akun? Hubungi administrator anda
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-center">Kontak Administrator</DialogTitle>
+                  <DialogDescription className="text-center">
+                    Silahkan hubungi administrator untuk pembuatan akun baru
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <Phone className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium">Telepon</p>
+                      <p className="text-sm text-gray-600">0812-3456-7890</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <Mail className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium">Email</p>
+                      <p className="text-sm text-gray-600">admin@desa.go.id</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <MessageCircle className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="text-sm font-medium">WhatsApp</p>
+                      <p className="text-sm text-gray-600">+62812-3456-7890</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <MapPin className="h-5 w-5 text-red-600" />
+                    <div>
+                      <p className="text-sm font-medium">Alamat Kantor</p>
+                      <p className="text-sm text-gray-600">Kantor Desa, Jl. Merdeka No. 1</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                    <Clock className="h-5 w-5 text-orange-600" />
+                    <div>
+                      <p className="text-sm font-medium">Jam Operasional</p>
+                      <p className="text-sm text-gray-600">Senin-Jumat 08:00-16:00</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-center">
+                  <Button onClick={() => setIsContactModalOpen(false)}>
+                    Tutup
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </CardFooter>
       </Card>

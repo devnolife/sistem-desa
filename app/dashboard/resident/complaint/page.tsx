@@ -1,269 +1,420 @@
 "use client"
 
 import { useState } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
 import DashboardLayout from "@/components/dashboard-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { MessageSquare, Send, Eye } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
+import { Upload, CheckCircle, AlertCircle, MessageSquare, Camera, MapPin, AlertTriangle } from "lucide-react"
+import { COMPLAINT_CATEGORIES, URGENCY_LEVELS } from "@/lib/types"
 
-// Sample complaint data
-const initialComplaints = [
-  {
-    id: 1,
-    title: "Lampu Jalan Tidak Berfungsi",
-    description: "Lampu jalan di dekat rumah #45 sudah mati selama seminggu.",
-    category: "Infrastruktur",
-    status: "Tertunda",
-    date: "2023-07-10",
-    response: "",
-  },
-  {
-    id: 2,
-    title: "Masalah Pengumpulan Sampah",
-    description: "Sampah belum diambil di area kami selama dua minggu terakhir.",
-    category: "Sanitasi",
-    status: "Dalam Proses",
-    date: "2023-07-05",
-    response: "Kami telah memberi tahu departemen sanitasi. Mereka akan mengatasi masalah ini dalam 3 hari.",
-  },
-  {
-    id: 3,
-    title: "Keluhan Kebisingan",
-    description: "Kebisingan berlebihan dari lokasi konstruksi selama jam malam.",
-    category: "Kebisingan",
-    status: "Selesai",
-    date: "2023-06-20",
-    response: "Perusahaan konstruksi telah diperintahkan untuk membatasi jam kerja dari 8 pagi hingga 6 sore saja.",
-  },
-]
+// Validation schema according to specifications
+const complaintSchema = z.object({
+  title: z.string()
+    .min(5, "Judul keluhan minimal 5 karakter")
+    .max(100, "Judul keluhan maksimal 100 karakter"),
+  category: z.enum(['fasilitas_kesehatan', 'pendidikan', 'ekonomi', 'infrastruktur', 'partisipasi_masyarakat'], {
+    required_error: "Kategori keluhan harus dipilih"
+  }),
+  description: z.string()
+    .min(20, "Deskripsi minimal 20 karakter")
+    .max(1000, "Deskripsi maksimal 1000 karakter"),
+  evidencePhoto: z.any()
+    .refine((file) => file && file.length > 0, "Foto bukti wajib diunggah")
+    .refine((file) => {
+      if (!file || file.length === 0) return false
+      return file[0]?.size <= 10000000 // 10MB
+    }, "Ukuran file maksimal 10MB")
+    .refine((file) => {
+      if (!file || file.length === 0) return false
+      return ['image/jpeg', 'image/jpg', 'image/png'].includes(file[0]?.type)
+    }, "Format file harus JPG, JPEG, atau PNG"),
+  urgencyLevel: z.enum(['sangat_mendesak', 'mendesak', 'normal'], {
+    required_error: "Tingkat urgensi harus dipilih"
+  }),
+  location: z.string()
+    .min(5, "Lokasi keluhan minimal 5 karakter")
+    .max(200, "Lokasi keluhan maksimal 200 karakter")
+})
 
-export default function ComplaintSubmission() {
-  const [complaints, setComplaints] = useState(initialComplaints)
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false)
-  const [currentComplaint, setCurrentComplaint] = useState<any>(null)
-  const [newComplaint, setNewComplaint] = useState({
-    title: "",
-    description: "",
-    category: "Infrastruktur",
+type ComplaintFormData = z.infer<typeof complaintSchema>
+
+export default function ComplaintSubmissionPage() {
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [submittedComplaint, setSubmittedComplaint] = useState<any>(null)
+  const { toast } = useToast()
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+    setValue,
+    reset
+  } = useForm<ComplaintFormData>({
+    resolver: zodResolver(complaintSchema)
   })
 
-  // Submit new complaint
-  const handleSubmitComplaint = () => {
-    const id = complaints.length > 0 ? Math.max(...complaints.map((complaint) => complaint.id)) + 1 : 1
-    const date = new Date().toISOString().split("T")[0]
+  const watchedPhoto = watch("evidencePhoto")
+  const watchedCategory = watch("category")
+  const watchedUrgency = watch("urgencyLevel")
 
-    setComplaints([
-      ...complaints,
-      {
-        id,
-        ...newComplaint,
-        status: "Tertunda",
-        date,
-        response: "",
-      },
-    ])
-
-    setNewComplaint({
-      title: "",
-      description: "",
-      category: "Infrastruktur",
-    })
-  }
-
-  // Get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Tertunda":
-        return "bg-yellow-100 text-yellow-800"
-      case "Dalam Proses":
-        return "bg-blue-100 text-blue-800"
-      case "Selesai":
-        return "bg-green-100 text-green-800"
-      case "Ditolak":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setValue("evidencePhoto", e.target.files)
     }
   }
 
+  const onSubmit = async (data: ComplaintFormData) => {
+    setIsLoading(true)
+
+    try {
+      // Simulate API call - In real app, this would upload to server
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Simulate successful submission
+      const newComplaint = {
+        id: `COMPLAINT-${Date.now()}`,
+        title: data.title,
+        category: data.category,
+        urgencyLevel: data.urgencyLevel,
+        submittedDate: new Date(),
+        status: 'diajukan'
+      }
+
+      setSubmittedComplaint(newComplaint)
+      setIsSubmitted(true)
+
+      toast({
+        title: "Keluhan Berhasil Diajukan!",
+        description: "Keluhan Anda telah berhasil diajukan dan akan ditinjau oleh Kepala Desa.",
+      })
+
+    } catch (error) {
+      toast({
+        title: "Pengajuan Gagal",
+        description: "Terjadi kesalahan saat mengajukan keluhan. Silakan coba lagi.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleNewComplaint = () => {
+    setIsSubmitted(false)
+    setSubmittedComplaint(null)
+    reset()
+  }
+
+  // Check if user needs to register first (simulated)
+  const needsRegistration = false // In real app, check if user has completed registration
+
+  if (needsRegistration) {
+    return (
+      <DashboardLayout role="penduduk">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Alert className="border-yellow-200 bg-yellow-50">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              <strong>Registrasi Diperlukan:</strong> Anda harus melengkapi registrasi penduduk terlebih dahulu sebelum dapat mengajukan keluhan.
+            </AlertDescription>
+          </Alert>
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>Registrasi Diperlukan</CardTitle>
+              <CardDescription>
+                Silakan lengkapi data diri Anda terlebih dahulu
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <a href="/dashboard/resident/registration">Lengkapi Registrasi</a>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (isSubmitted) {
+    return (
+      <DashboardLayout role="penduduk">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Card className="border-2 border-green-200">
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <CheckCircle className="h-16 w-16 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl text-green-800">Keluhan Berhasil Diajukan!</CardTitle>
+              <CardDescription>
+                Keluhan Anda telah berhasil diajukan ke sistem
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Langkah Selanjutnya:</strong>
+                  <br />
+                  1. Keluhan akan ditinjau oleh Kepala Desa dalam 1-3 hari kerja
+                  <br />
+                  2. Anda akan menerima notifikasi setelah ada keputusan
+                  <br />
+                  3. Status keluhan dapat dipantau di menu "Status Keluhan"
+                </AlertDescription>
+              </Alert>
+
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <strong>ID Keluhan:</strong> {submittedComplaint?.id}
+                  </div>
+                  <div>
+                    <strong>Status:</strong> Diajukan
+                  </div>
+                  <div>
+                    <strong>Kategori:</strong> {COMPLAINT_CATEGORIES[submittedComplaint?.category]}
+                  </div>
+                  <div>
+                    <strong>Urgensi:</strong> {URGENCY_LEVELS[submittedComplaint?.urgencyLevel]}
+                  </div>
+                </div>
+                <div>
+                  <strong>Waktu Pengajuan:</strong> {submittedComplaint?.submittedDate?.toLocaleString('id-ID')}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button onClick={handleNewComplaint} variant="outline" className="flex-1">
+                  Ajukan Keluhan Lain
+                </Button>
+                <Button asChild className="flex-1">
+                  <a href="/dashboard/resident/complaint-status">Cek Status Keluhan</a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
-    <DashboardLayout role="resident">
-      <div className="space-y-6">
+    <DashboardLayout role="penduduk">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ajukan Keluhan</h1>
-          <p className="text-gray-500">Ajukan dan lacak keluhan Anda kepada administrasi desa</p>
+          <p className="text-gray-500 mt-2">
+            Sampaikan keluhan Anda untuk ditinjau dan ditindaklanjuti oleh pemerintah desa
+          </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Keluhan Baru</CardTitle>
-              <CardDescription>Isi formulir di bawah ini untuk mengajukan keluhan baru</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Judul Keluhan</Label>
-                  <Input
-                    id="title"
-                    placeholder="Judul singkat keluhan Anda"
-                    value={newComplaint.title}
-                    onChange={(e) => setNewComplaint({ ...newComplaint, title: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Kategori</Label>
-                  <Select
-                    defaultValue={newComplaint.category}
-                    onValueChange={(value) => setNewComplaint({ ...newComplaint, category: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Infrastruktur">Infrastruktur</SelectItem>
-                      <SelectItem value="Sanitasi">Sanitasi</SelectItem>
-                      <SelectItem value="Air">Air</SelectItem>
-                      <SelectItem value="Listrik">Listrik</SelectItem>
-                      <SelectItem value="Kebisingan">Kebisingan</SelectItem>
-                      <SelectItem value="Lainnya">Lainnya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Deskripsi</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Berikan detail tentang keluhan Anda"
-                    rows={5}
-                    value={newComplaint.description}
-                    onChange={(e) => setNewComplaint({ ...newComplaint, description: e.target.value })}
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button
-                className="w-full gap-2"
-                onClick={handleSubmitComplaint}
-                disabled={!newComplaint.title || !newComplaint.description}
-              >
-                <Send className="h-4 w-4" />
-                Ajukan Keluhan
-              </Button>
-            </CardFooter>
-          </Card>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Panduan Pengajuan:</strong> Pastikan keluhan disampaikan dengan jelas dan lengkap dengan bukti foto.
+            Keluhan akan ditinjau dan diprioritaskan berdasarkan urgensi dan kategori.
+          </AlertDescription>
+        </Alert>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Keluhan Anda</CardTitle>
-              <CardDescription>Lacak status keluhan yang telah Anda ajukan</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {complaints.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <MessageSquare className="h-12 w-12 text-gray-300 mb-4" />
-                  <p className="text-gray-500">Anda belum mengajukan keluhan apa pun</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Judul</TableHead>
-                      <TableHead>Tanggal</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Tindakan</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {complaints.map((complaint) => (
-                      <TableRow key={complaint.id}>
-                        <TableCell className="font-medium">{complaint.title}</TableCell>
-                        <TableCell>{new Date(complaint.date).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(complaint.status)}`}>
-                            {complaint.status}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setCurrentComplaint(complaint)
-                              setIsViewDetailsOpen(true)
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                            <span className="sr-only">Lihat detail</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Complaint Details Dialog */}
-        <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Detail Keluhan</DialogTitle>
-              <DialogDescription>Lihat detail dan status keluhan Anda</DialogDescription>
-            </DialogHeader>
-            {currentComplaint && (
-              <div className="py-4 space-y-4">
-                <div>
-                  <h3 className="text-lg font-medium">{currentComplaint.title}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(currentComplaint.status)}`}>
-                      {currentComplaint.status}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      Diajukan pada {new Date(currentComplaint.date).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500">Kategori</h4>
-                  <p>{currentComplaint.category}</p>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500">Deskripsi</h4>
-                  <p className="mt-1">{currentComplaint.description}</p>
-                </div>
-
-                {currentComplaint.response && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                    <h4 className="text-sm font-medium text-gray-500">Tanggapan Resmi</h4>
-                    <p className="mt-1">{currentComplaint.response}</p>
-                  </div>
+        <Card className="border-2 border-purple-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5" />
+              Form Pengajuan Keluhan
+            </CardTitle>
+            <CardDescription>
+              Isi semua field dengan informasi yang akurat dan lengkap
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {/* Judul Keluhan */}
+              <div className="space-y-2">
+                <Label htmlFor="title" className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Judul Keluhan *
+                </Label>
+                <Input
+                  id="title"
+                  placeholder="Contoh: Jalan Rusak di RT 02/RW 05"
+                  {...register("title")}
+                  className={errors.title ? "border-red-500" : ""}
+                />
+                {errors.title && (
+                  <p className="text-sm text-red-500">{errors.title.message}</p>
                 )}
               </div>
-            )}
-            <DialogFooter>
-              <Button onClick={() => setIsViewDetailsOpen(false)}>Tutup</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+
+              {/* Kategori Keluhan */}
+              <div className="space-y-2">
+                <Label htmlFor="category">Kategori Keluhan *</Label>
+                <Select onValueChange={(value) => setValue("category", value as any)}>
+                  <SelectTrigger className={errors.category ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Pilih kategori keluhan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COMPLAINT_CATEGORIES).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.category && (
+                  <p className="text-sm text-red-500">{errors.category.message}</p>
+                )}
+              </div>
+
+              {/* Deskripsi Detail */}
+              <div className="space-y-2">
+                <Label htmlFor="description">Deskripsi Detail *</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Jelaskan keluhan Anda dengan detail. Minimal 20 karakter."
+                  rows={4}
+                  {...register("description")}
+                  className={errors.description ? "border-red-500" : ""}
+                />
+                {errors.description && (
+                  <p className="text-sm text-red-500">{errors.description.message}</p>
+                )}
+                <p className="text-xs text-gray-500">
+                  Jelaskan keluhan dengan detail untuk memudahkan proses penanganan
+                </p>
+              </div>
+
+              {/* Upload Foto Bukti */}
+              <div className="space-y-2">
+                <Label htmlFor="evidencePhoto" className="flex items-center gap-2">
+                  <Camera className="h-4 w-4" />
+                  Foto Bukti *
+                </Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Input
+                    id="evidencePhoto"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png"
+                    onChange={handlePhotoChange}
+                    className="hidden"
+                  />
+                  <Label htmlFor="evidencePhoto" className="cursor-pointer">
+                    <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">
+                      {watchedPhoto && watchedPhoto.length > 0
+                        ? `File terpilih: ${watchedPhoto[0]?.name}`
+                        : "Klik untuk mengunggah foto bukti keluhan"}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Format: JPG, JPEG, PNG. Maksimal 10MB
+                    </p>
+                  </Label>
+                </div>
+                {errors.evidencePhoto && (
+                  <p className="text-sm text-red-500">{errors.evidencePhoto.message}</p>
+                )}
+              </div>
+
+              {/* Lokasi Keluhan */}
+              <div className="space-y-2">
+                <Label htmlFor="location" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Lokasi Keluhan *
+                </Label>
+                <Input
+                  id="location"
+                  placeholder="Contoh: Jl. Merdeka RT 02/RW 05 atau nama tempat spesifik"
+                  {...register("location")}
+                  className={errors.location ? "border-red-500" : ""}
+                />
+                {errors.location && (
+                  <p className="text-sm text-red-500">{errors.location.message}</p>
+                )}
+              </div>
+
+              {/* Tingkat Urgensi */}
+              <div className="space-y-2">
+                <Label htmlFor="urgencyLevel" className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Tingkat Urgensi *
+                </Label>
+                <Select onValueChange={(value) => setValue("urgencyLevel", value as any)}>
+                  <SelectTrigger className={errors.urgencyLevel ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Pilih tingkat urgensi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(URGENCY_LEVELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        <span className={
+                          key === 'sangat_mendesak' ? 'text-red-600 font-semibold' :
+                            key === 'mendesak' ? 'text-orange-600 font-medium' :
+                              'text-green-600'
+                        }>
+                          {label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.urgencyLevel && (
+                  <p className="text-sm text-red-500">{errors.urgencyLevel.message}</p>
+                )}
+              </div>
+
+              {/* Preview Information */}
+              {(watchedCategory || watchedUrgency) && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="pt-4">
+                    <h4 className="font-semibold text-blue-800 mb-2">Ringkasan Keluhan</h4>
+                    <div className="text-sm text-blue-700 space-y-1">
+                      {watchedCategory && (
+                        <p><strong>Kategori:</strong> {COMPLAINT_CATEGORIES[watchedCategory]}</p>
+                      )}
+                      {watchedUrgency && (
+                        <p><strong>Tingkat Urgensi:</strong> {URGENCY_LEVELS[watchedUrgency]}</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+                size="lg"
+              >
+                {isLoading ? "Sedang Mengajukan..." : "Ajukan Keluhan"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <h3 className="font-semibold text-orange-800 mb-2">Informasi Penting</h3>
+            <ul className="text-sm text-orange-700 space-y-1">
+              <li>• Keluhan akan ditinjau dalam 1-3 hari kerja</li>
+              <li>• Foto bukti sangat membantu proses penanganan</li>
+              <li>• Keluhan mendesak akan diprioritaskan</li>
+              <li>• Anda akan mendapat notifikasi untuk setiap perkembangan</li>
+              <li>• Status keluhan dapat dipantau kapan saja</li>
+            </ul>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   )
